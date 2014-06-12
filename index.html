@@ -1,0 +1,88 @@
+<html style="background-color: #000">
+  <head>
+    <title>
+      graphist 2.0.0
+    </title>
+  </head>
+  <body>
+  </body>
+  <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+  <script src="js/graphitejs/jquery.graphite.js"></script>
+  <script src="graphist.conf.js"></script>
+  <script>
+  // render graphs from their attached .data()
+  function draw_graphs() {
+    $(".graph").each(function(i, graph) {
+      var graph_spec = $(graph).data();
+
+      // Override the graph rendering width/height so it fills the parent container
+      if( $(graph).parent().height() ) graph_spec["height"] = $(graph).parent().height();
+      if( $(graph).parent().width()  ) graph_spec["width"]  = $(graph).parent().width();
+      
+      $.fn.graphite.defaults.url = graphite_url + "/render/"
+      $(graph).graphite(graph_spec);
+    });
+  }
+
+  // Fetch query string parameters
+  // shamelessly stolen from http://stackoverflow.com/a/3855394
+  var qs = (function(a) {
+    if (a == "") return {};
+    var b = {};
+    for (var i = 0; i < a.length; ++i) {
+      var p=a[i].split('=');
+      if (p.length != 2) continue;
+      b[p[0]] = decodeURIComponent(p[1].replace(/\+/g, " "));
+    }
+    return b;
+  })(window.location.search.substr(1).split('&'));
+
+
+  $(function(){
+    // Allow overriding some options from the query string
+    if( "dashboard" in qs ) dashboard_name  = qs["dashboard"];
+    if( "width"     in qs ) graph_width     = qs["width"];
+    if( "height"    in qs ) graph_height    = qs["height"];
+    if( "from"      in qs ) graph_from      = qs["from"];
+
+    $.getJSON( graphite_url + "/dashboard/load/" + dashboard_name, function( dashboard ) {
+      $.each( dashboard["state"]["graphs"], function( i ) {
+        var graph_id = "graph_" + i;
+        var graph_spec = dashboard["state"]["graphs"][i][1];
+        if(!("from" in graph_spec)) {
+          graph_spec["from"] = graph_from;
+        }
+        if( $("#"+graph_id).length ) { // we've already defined an element with this graph id, so use it
+          graph = $("#"+graph_id)
+          graph.data(graph_spec);
+        } else { // we haven't defined an element with this graph id, create one
+        $("<div>", {
+          "style": "width: " + graph_width + "; height: " + graph_height + "; float: left"
+        }).append($("<img/>", {
+          "data": graph_spec,
+          "id":   "graph_" + i,
+          "class":"graph" })).appendTo("body");
+        }
+      });
+      draw_graphs();
+    });
+  });
+
+  $(window).resize(function() {
+  if(this.resizeTO) clearTimeout(this.resizeTO);
+    this.resizeTO = setTimeout(function() {
+      $(this).trigger('resizeEnd');
+    }, 500);
+  });
+
+  $(window).bind('resizeEnd', function() {
+    draw_graphs();
+  });
+
+  $(function() {
+    setInterval(function() { draw_graphs(); }, graph_refresh);
+  });
+
+  window.onload = draw_graphs();
+  </script>
+</html>
